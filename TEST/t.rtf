@@ -1,0 +1,135 @@
+Комментарии в тексте обработчика событий PrintPageEventHandler поясняют назначение отдельных программных строк. Заметим, что для полного понимания действий, выполняемых нашим обработчиком событий, требуется предварительное знакомство с графической подсистемой Graphics Device Interface Plus (GDI+), реализованной компанией Microsoft в рамках библиотеки классов .NET Framework. Мы посвятим этой теме 10 главу нашей книги.
+
+Пока же мы только отмептим, что приложение распечатывает текст построчно в цикле. После завершения печати всех строк текущей страницы обработчик событий PrintPageEventHandler печатает верхний и нижний колонтитулы, а также рисует горизонтальные линии, отделяющие текст колонтитулов от текста документа.
+
+Учтите, что один и тот же обработчик событий PrintPageEventHandler используется как в режиме предварительного просмотра, так и в режиме печати документа.
+
+Хотя наше приложение допускает форматирование редактируемых документов и даже вставку в них через универсальный буфер обмена Clipboard графических изображений, на печать будет выводиться только текст. Для печати документа с учетом форматирования и наличия графических изображений обработчик сообщений PrintPageEventHandler нужно сильно усложнить.
+
+Закрытие главного окна редактора текста
+
+Окно нашего редактора текста должно быть закрыто, когда пользователь выбирает из меню File строку Exit. Это легко достигается добавлением метода Close в тело обработчика сообщения menuFileExit_Click:
+
+private void menuFileExit_Click(object sender, System.EventArgs e)hgfh
+{
+  this.Close(); // изменения в документе будут потеряны!
+}
+
+Однако здесь возникает проблема: окно редактора текста будет закрыто и в том случае, если пользователь не сохранил сделанные им изменения.
+
+Чтобы решить эту проблему, нам нужно каким-то образом отслеживать наличие изменений в окне редактирования текста. К счастью, это сделать достаточно просто.
+
+Определим в классе SimpleNotepadForm поле m_DocumentChanged, в котором будем хранить флаг, отмечающий изменения, сделанные пользователем в документе:
+
+private bool m_DocumentChanged = false;
+
+В новом или только что загруженном документе изменений нет, поэтому начальное значение этого флага равно false.
+
+Далее откройте окно визуального проектирования формы и щелкните дважды левой клавишей мыши редактор текста richTextBox1. В результате дизайнер форм создаст для нас обработчик события richTextBox1_TextChanged. Этот обработчик получит управление, как только пользователь внесет любые изменения в содержимое редактируемого документа.
+
+Вам остается только обеспечить изменение состояния флага m_DocumentChanged внутри этого обработчика:
+
+private void richTextBox1_TextChanged(object sender, 
+  System.EventArgs e)
+{
+  m_DocumentChanged = true;   
+}
+
+Если пользователь редактировал документ, а потом решил создать новый, выбрав из меню File строку New, изменения, внесенные в старый документ, могут быть потеряны. Чтобы избежать этого, проверьте флаг m_DocumentChanged перед тем как очищать содержимое редактора текста. Если в редакторе есть не сохраненные изменения, необходимо вызвать метод MenuFileSaveAs, предназначенный для сохранения документа:
+
+private void menuFileNew_Click(object sender, System.EventArgs e)
+{
+  if(m_DocumentChanged)
+     MenuFileSaveAs();
+  richTextBox1.Clear();
+}
+
+После того как пользователь сохранил изменения в документе, флаг m_DocumentChanged необходимо сбросить. Для этого отредактируйте исходный текст метода MenuFileSaveAs, добавив в него строку сброса указанного флага:
+
+private void MenuFileSaveAs()
+{
+  if(saveFileDialog1.ShowDialog() == 
+     System.Windows.Forms.DialogResult.OK &&
+     saveFileDialog1.FileName.Length > 0) 
+  {
+     richTextBox1.SaveFile(saveFileDialog1.FileName);
+     m_DocumentChanged = false;
+  }
+}
+
+Теперь подготовьте обработчик события menuFileExit_Click следующим образом:
+
+private void menuFileExit_Click(object sender, System.EventArgs e)
+{
+  if(m_DocumentChanged)
+     MenuFileSaveAs();
+  this.Close();
+}
+
+И, наконец, надо выполнить еще одну проверку флага m_DocumentChanged - в методе Dispose, который вызывается при закрытии окна приложения:
+
+/// <summary>
+/// Clean up any resources being used.
+/// </summary>
+protected override void Dispose( bool disposing )
+{
+  if(m_DocumentChanged)
+     MenuFileSaveAs();
+
+  if( disposing )
+  {
+     if (components != null) 
+     {
+       components.Dispose();
+     }
+  }
+  base.Dispose( disposing );
+}
+
+Теперь, когда пользователь попытается закрыть программу редактора с помощью строки Exit меню File или с помощью соответствующей кнопки строки заголовка окна, не сохранив сделанные изменения, на экране появится стандартное диалоговое окно, предлагающее ему сохранить документ.
+
+Реализация функций меню Edit
+
+Реализация функций меню Edit, стандартных для всех редакторов текста и многих других приложений, в нашем случае получается очень простой, т.к. элемент управления RichTextBox имеет в своем составе все необходимые методы.
+
+Все, что Вам нужно сделать, это вызвать эти методы в соответствующих обработчиках событий. Например, для реализации функции копирования выделенного фрагмента текста в универсальный буфер обмена Clipboard нужно добавить в тело обработчика события строки Copy меню Edit вызов метода Copy.
+
+Добавьте в меню Edit нашего редактора текста строку Redo. Затем подготовьте обработчики событий от всех строк меню Edit следующим образом:
+
+private void menuEditUndo_Click(object sender, System.EventArgs e)
+{
+  richTextBox1.Undo();
+}
+
+private void menuItem1_Click(object sender, System.EventArgs e)
+{
+  richTextBox1.Redo();
+}
+
+private void menuEditCut_Click(object sender, System.EventArgs e)
+{
+  richTextBox1.Cut();
+}
+
+private void menuEditCopy_Click(object sender, System.EventArgs e)
+{
+  richTextBox1.Copy();
+}
+
+private void menuEditPaste_Click(object sender, System.EventArgs e)
+{
+  richTextBox1.Paste();
+}
+
+private void menuEditDelete_Click(object sender, System.EventArgs e)
+{
+  richTextBox1.Cut();
+}
+
+private void menuEditSelectAll_Click(object sender, 
+  System.EventArgs e)
+{
+  richTextBox1.SelectAll();
+}
+
+Теперь наше приложение Simple Notepad сможет обмениваться текстовыми и графическими данными с другими приложениями Microsoft Windows через универсальный буфер обмена Clipboard.
